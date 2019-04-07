@@ -31,16 +31,11 @@ class TemplateBoundedSumIterator {
   size_t bound;
   std::vector<size_t> index_head;  // contains all entries of the index except the last one
   size_t index_head_sum;
-  size_t middle_dimensions_counter;
   bool is_done;
 
  public:
   TemplateBoundedSumIterator(size_t bound)
-      : bound(bound),
-        index_head(d - 1, 0),
-        index_head_sum(0),
-        middle_dimensions_counter(0),
-        is_done(false){};
+      : bound(bound), index_head(d - 1, 0), index_head_sum(0), is_done(false){};
 
   /**
    * At the current multi-index (i_1, ..., i_{d-1}, 0), return how many multi-indices starting with
@@ -49,9 +44,7 @@ class TemplateBoundedSumIterator {
    */
   size_t lastDimensionCount() { return bound - index_head_sum + 1; }
 
-  bool next() {
-    middle_dimensions_counter += lastDimensionCount();
-
+  void next() {
     if (bound > index_head_sum) {
       index_head_sum += 1;
       index_head[d - 2] += 1;
@@ -62,23 +55,16 @@ class TemplateBoundedSumIterator {
         // reduce dimension until entry is nonzero
       }
 
-      if (dim > 1) {
+      if (dim > 0) {
         index_head_sum -= (index_head[dim] - 1);
         index_head[dim] = 0;
         index_head[dim - 1] += 1;
-      } else if (dim == 1) {
-        index_head_sum -= (index_head[1] - 1);
-        index_head[1] = 0;
-        index_head[0] += 1;
-        middle_dimensions_counter = 0;
-        return true;
       } else if (dim == 0) {
         index_head[dim] = 0;
         index_head_sum = 0;
         is_done = true;
       }
     }
-    return false;
   }
 
   size_t firstIndex() const { return index_head[0]; }
@@ -87,12 +73,9 @@ class TemplateBoundedSumIterator {
 
   bool done() const { return is_done; }
 
-  size_t getMiddleDimensionsCounter() const { return middle_dimensions_counter; }
-
   void reset() {
     index_head = std::vector<size_t>(d - 1, 0);
     index_head_sum = 0;
-    middle_dimensions_counter = 0;
     is_done = false;
   }
 

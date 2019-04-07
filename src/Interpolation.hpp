@@ -77,11 +77,15 @@ void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas:
     auto &Lk = L[k];
     it.reset();
 
+    size_t first_v_index = 0;
+    size_t second_v_index = 0;
+
     double *data_pointer = &v.data[0][0];
+    size_t data_size = v.data[0].size();
 
     while (not it.done()) {
       size_t last_dim_count = it.lastDimensionCount();
-      double *offset_data_pointer = data_pointer + it.getMiddleDimensionsCounter();
+      double *offset_data_pointer = data_pointer + second_v_index;
       for (size_t i = 0; i < last_dim_count; ++i) {
         double sum = 0.0;
         for (size_t j = 0; j <= i; ++j) {
@@ -89,11 +93,15 @@ void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas:
         }
         w.data[i].push_back(sum);
       }
-
-      bool first_dimension_changed = it.next();
-      if (first_dimension_changed) {
-        data_pointer = &v.data[it.firstIndex()][0];
+      second_v_index += last_dim_count;
+      if (second_v_index >= data_size) {
+        second_v_index = 0;
+        first_v_index += 1;
+        data_pointer = &v.data[first_v_index][0];
+        data_size = v.data[first_v_index].size();
       }
+
+      it.next();
     }
 
     v.swap(w);
@@ -124,11 +132,15 @@ void multiply_upper_triangular_inplace(It it, std::vector<boost::numeric::ublas:
     auto &Uk = U[k];
     it.reset();
 
+    size_t first_v_index = 0;
+    size_t second_v_index = 0;
+
     double *data_pointer = &v.data[0][0];
+    size_t data_size = v.data[0].size();
 
     while (not it.done()) {
       size_t last_dim_count = it.lastDimensionCount();
-      double *offset_data_pointer = data_pointer + it.getMiddleDimensionsCounter();
+      double *offset_data_pointer = data_pointer + second_v_index;
       for (size_t i = 0; i < last_dim_count; ++i) {
         double sum = 0.0;
         for (size_t j = i; j < last_dim_count; ++j) {
@@ -136,11 +148,15 @@ void multiply_upper_triangular_inplace(It it, std::vector<boost::numeric::ublas:
         }
         w.data[i].push_back(sum);
       }
-
-      bool first_dimension_changed = it.next();
-      if (first_dimension_changed) {
-        data_pointer = &v.data[it.firstIndex()][0];
+      second_v_index += last_dim_count;
+      if (second_v_index >= data_size) {
+        second_v_index = 0;
+        first_v_index += 1;
+        data_pointer = &v.data[first_v_index][0];
+        data_size = v.data[first_v_index].size();
       }
+
+      it.next();
     }
 
     it = it.cycle();

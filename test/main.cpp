@@ -112,8 +112,8 @@ class Timer {
 
 // using namespace fsi;
 int main() {
-  constexpr size_t d = 8;
-  size_t bound = 24;
+  constexpr size_t d = 2;
+  size_t bound = 2;
   fsi::TemplateBoundedSumIterator<d> it(bound);
   // fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
@@ -122,7 +122,7 @@ int main() {
   auto rhs = evaluateFunction(it, f, x);
   auto op = createInterpolationOperator(it, phi, x);
 
-  // std::cout << rhs << "\n";
+  std::cout << rhs << "\n";
 
   Timer timer;
   op.prepareSolve();
@@ -133,12 +133,12 @@ int main() {
   auto c = op.solve(rhs);
   // auto c = fsi::interpolate(f, it, phi, x);
   std::cout << "Time for solve(): " << timer.elapsed() << " s\n";
-  // std::cout << c << "\n";
+  std::cout << c << "\n";
 
   timer.reset();
   auto b = op.apply(c);
   std::cout << "Time for apply(): " << timer.elapsed() << " s\n";
-  // std::cout << b << "\n";
+  std::cout << b << "\n";
 
   std::cout << "Number of points: " << it.numValues() << "\n";
 
