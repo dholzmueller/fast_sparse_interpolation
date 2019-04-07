@@ -52,11 +52,26 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
   return os;
 }
 
+// TODO: refactoring:
+/**
+ * - Interface for MultiDimVector
+ * - Separate Functions for L- and U-Multiplication, Creation of LU decomposition, computation of
+ * function values
+ * - Pass a callback function to iterator instead of calling it.next() - this might improve the
+ * vector functions (could be made recursive or even loops for fixed dimension implementation)
+ * - Typed interface?
+ * - Tests?
+ * - More point distributions / Basis functions?
+ * - Forward evaluation?
+ * - Computation of derivatives?
+ */
+
 // using namespace fsi;
 int main() {
-  size_t d = 12;
-  size_t bound = 16;
-  fsi::BoundedSumIterator it(d, bound);
+  constexpr size_t d = 30;
+  size_t bound = 8;
+  fsi::TemplateBoundedSumIterator<d> it(bound);
+  // fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
   std::vector<GoldenPointDistribution> x(d);
   auto start = std::chrono::high_resolution_clock::now();
