@@ -1,3 +1,17 @@
+/* Copyright 2019 The fast_sparse_interpolation Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 
 #include <Interpolation.hpp>
 #include <chrono>
@@ -52,6 +66,14 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
   return os;
 }
 
+std::ostream &operator<<(std::ostream &os, fsi::MultiDimVector const &v) {
+  for (size_t i = 0; i < v.data.size(); ++i) {
+    std::cout << v.data[i] << "\n\n";
+  }
+
+  return os;
+}
+
 // TODO: refactoring:
 /**
  * - Interface for MultiDimVector
@@ -66,19 +88,58 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
  * - Computation of derivatives?
  */
 
-// using namespace fsi;
-int main() {
-  constexpr size_t d = 5;
-  size_t bound = 57;
-  // fsi::TemplateBoundedSumIterator<d> it(bound);
-  fsi::BoundedSumIterator it(d, bound);
-  std::vector<MonomialFunctions> phi(d);
-  std::vector<GoldenPointDistribution> x(d);
+double measure_execution_time(std::function<void()> f) {
   auto start = std::chrono::high_resolution_clock::now();
-  auto result = fsi::interpolate(f, it, phi, x);
+  f();
   auto finish = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> elapsed = finish - start;
-  std::cout << "Elapsed time: " << elapsed.count() << " s\n";
+  return elapsed.count();
+}
+
+class Timer {
+  std::chrono::system_clock::time_point start;
+
+ public:
+  Timer() : start(std::chrono::high_resolution_clock::now()){};
+  void reset() { start = std::chrono::high_resolution_clock::now(); }
+  double elapsed() {
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    return elapsed.count();
+  }
+};
+
+// using namespace fsi;
+int main() {
+  constexpr size_t d = 8;
+  size_t bound = 24;
+  fsi::TemplateBoundedSumIterator<d> it(bound);
+  // fsi::BoundedSumIterator it(d, bound);
+  std::vector<MonomialFunctions> phi(d);
+  std::vector<GoldenPointDistribution> x(d);
+
+  auto rhs = evaluateFunction(it, f, x);
+  auto op = createInterpolationOperator(it, phi, x);
+
+  // std::cout << rhs << "\n";
+
+  Timer timer;
+  op.prepareSolve();
+  // auto result = fsi::interpolate(f, it, phi, x);
+  std::cout << "Time for prepareSolve(): " << timer.elapsed() << " s\n";
+
+  timer.reset();
+  auto c = op.solve(rhs);
+  // auto c = fsi::interpolate(f, it, phi, x);
+  std::cout << "Time for solve(): " << timer.elapsed() << " s\n";
+  // std::cout << c << "\n";
+
+  timer.reset();
+  auto b = op.apply(c);
+  std::cout << "Time for apply(): " << timer.elapsed() << " s\n";
+  // std::cout << b << "\n";
+
+  std::cout << "Number of points: " << it.numValues() << "\n";
 
   // for (size_t i = 0; i < result.data.size(); ++i) {
   //   std::cout << result.data[i] << "\n\n";

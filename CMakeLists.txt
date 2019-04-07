@@ -16,21 +16,14 @@ file(GLOB INC_TEST "test/*.hpp")
 option(BUILD_TEST ON)
 
 ## Build application
-add_library(fast_sparse_interpolation ${SRC})
+# add_library(fast_sparse_interpolation ${SRC})
 include_directories("${PROJECT_SOURCE_DIR}/src")
 
-if(BUILD_TEST)
-    if(BUILD_TEST STREQUAL "ON")
-        file(GLOB SRC_TEST "test/*.cpp")
-        add_executable(fsi-test ${SRC_TEST})
-        include_directories("${PROJECT_SOURCE_DIR}/src")
-        target_link_libraries(fast_sparse_interpolation)
-    endif()
-endif()
+file(GLOB SRC_TEST "test/*.cpp")
+add_executable(fsi-test ${SRC_TEST})
+include_directories("${PROJECT_SOURCE_DIR}/src")
 
-
-
-install(TARGETS fast_sparse_interpolation DESTINATION lib)
+# install(TARGETS fast_sparse_interpolation DESTINATION lib)
 install(FILES ${INC} DESTINATION include/sfcpp)
 
 

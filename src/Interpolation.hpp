@@ -1,7 +1,17 @@
-// Copyright (C) 2008-today The SG++ project
-// This file is part of the SG++ project. For conditions of distribution and
-// use, please see the copyright notice provided with SG++ or at
-// sgpp.sparsegrids.org
+/* Copyright 2019 The fast_sparse_interpolation Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 
 #pragma once
 
@@ -29,18 +39,6 @@ size_t binom(size_t n, size_t k) {
   return prod;
 }
 
-template <size_t dim>
-void iterateRecursive(size_t remaining, std::function<void(size_t)> callback) {
-  for (size_t val = 0; val <= remaining; ++val) {
-    iterateRecursive<dim - 1>(remaining - val, callback);
-  }
-}
-
-template <>
-void iterateRecursive<0>(size_t remaining, std::function<void(size_t)> callback) {
-  callback(remaining);
-}
-
 template <size_t d>
 class TemplateBoundedSumIterator {
   size_t bound;
@@ -51,14 +49,6 @@ class TemplateBoundedSumIterator {
  public:
   TemplateBoundedSumIterator(size_t bound)
       : bound(bound), index_head(d - 1, 0), index_head_sum(0), is_done(false){};
-
-  void iterate(std::function<void(size_t)> callback,
-               std::function<void(size_t)> outerLoopCallback) {
-    for (size_t val = 0; val <= bound; ++val) {
-      outerLoopCallback(val);
-      iterateRecursive<d - 2>(bound - val, callback);
-    }
-  }
 
   /**
    * At the current multi-index (i_1, ..., i_{d-1}, 0), return how many multi-indices starting with
@@ -105,6 +95,8 @@ class TemplateBoundedSumIterator {
   size_t dim() const { return d; }
 
   std::vector<size_t> indexBounds() const { return std::vector<size_t>(d, bound + 1); }
+
+  size_t numValues() const { return binom(bound + d, d); }
 
   /**
    * Returns an iterator where the last index moves to the front. For an index set defined by a sum
@@ -240,12 +232,6 @@ class StandardBoundedSumIterator {
   }
 };
 
-// class FastSparseInterpolation {
-// public:
-//  FastSparseInterpolation(std::function<double(std::vector<double>)> const &f,
-//                          BoundedSumIterator it, std::vector<std::function<double(size_t)>> phi);
-//};
-
 class MultiDimVector {
  public:
   // put the first dimension into an outer vector for processing reasons
@@ -260,28 +246,6 @@ class MultiDimVector {
     }
   }
 };
-
-inline std::ostream &operator<<(std::ostream &os, boost::numeric::ublas::matrix<double> matrix) {
-  os << "[";
-  for (size_t i = 0; i < matrix.size1(); ++i) {
-    for (size_t j = 0; j < matrix.size2(); ++j) {
-      os << matrix(i, j) << "   ";
-    }
-    os << "\n";
-  }
-  os << " ]";
-  return os;
-}
-
-template <class T>
-inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
-  os << "[";
-  for (auto ii = v.begin(); ii != v.end(); ++ii) {
-    os << " " << *ii;
-  }
-  os << " ]";
-  return os;
-}
 
 template <typename It>
 void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas::matrix<double>> L,
@@ -393,6 +357,188 @@ void multiply_upper_triangular_inplace(It it, std::vector<boost::numeric::ublas:
   }
 }
 
+/**
+ * Represents a sparse linear tensor product operator defined by a matrix for each dimension.
+ */
+template <typename It>
+class SparseTPOperator {
+  It it;
+  std::vector<boost::numeric::ublas::matrix<double>> M;
+  std::vector<boost::numeric::ublas::matrix<double>> LU;
+  std::vector<boost::numeric::ublas::matrix<double>> L;
+  std::vector<boost::numeric::ublas::matrix<double>> U;
+  std::vector<boost::numeric::ublas::matrix<double>> Linv;
+  std::vector<boost::numeric::ublas::matrix<double>> Uinv;
+  size_t d;
+
+ public:
+  SparseTPOperator(It it, std::vector<boost::numeric::ublas::matrix<double>> matrices)
+      : it(it), M(matrices), d(matrices.size()){};
+
+  void prepareCommon() {
+    if (LU.size() > 0) {
+      return;  // already prepared
+    }
+
+    namespace ublas = boost::numeric::ublas;
+    typedef ublas::matrix<double> Matrix;
+
+    for (size_t k = 0; k < d; ++k) {
+      // std::cout << "Matrix creation loop\n";
+      Matrix Mk = M[k];
+
+      ublas::lu_factorize(Mk);
+
+      LU.push_back(Mk);
+    }
+  }
+
+  void prepareApply() {
+    if (L.size() > 0) {
+      return;  // already prepared
+    }
+
+    prepareCommon();
+
+    namespace ublas = boost::numeric::ublas;
+    typedef ublas::matrix<double> Matrix;
+
+    for (size_t k = 0; k < d; ++k) {
+      size_t nk = M[k].size1();
+      Matrix &LUk = LU[k];
+      Matrix Lk(nk, nk);
+      Matrix Uk(nk, nk);
+
+      for (size_t i = 0; i < nk; ++i) {
+        for (size_t j = 0; j < i; ++j) {
+          Lk(i, j) = LUk(i, j);
+        }
+
+        Lk(i, i) = 1.0;
+
+        for (size_t j = i; j < nk; ++j) {
+          Uk(i, j) = LUk(i, j);
+        }
+      }
+
+      L.push_back(Lk);
+      U.push_back(Uk);
+    }
+  }
+
+  void prepareSolve() {
+    if (Linv.size() > 0) {
+      return;  // already prepared
+    }
+
+    prepareCommon();
+
+    namespace ublas = boost::numeric::ublas;
+    typedef ublas::matrix<double> Matrix;
+
+    for (size_t k = 0; k < d; ++k) {
+      Matrix Lkinv = ublas::identity_matrix<double>(M[k].size1());
+      Matrix Ukinv = ublas::identity_matrix<double>(M[k].size1());
+
+      ublas::inplace_solve(LU[k], Lkinv, ublas::unit_lower_tag());
+      ublas::inplace_solve(LU[k], Ukinv, ublas::upper_tag());
+
+      Linv.push_back(Lkinv);
+      Uinv.push_back(Ukinv);
+    }
+  }
+
+  MultiDimVector apply(MultiDimVector input) {
+    prepareApply();
+    multiply_upper_triangular_inplace(it, U, input);
+    multiply_lower_triangular_inplace(it, L, input);
+    return input;
+  }
+
+  MultiDimVector solve(MultiDimVector rhs) {
+    prepareSolve();
+    multiply_lower_triangular_inplace(it, Linv, rhs);
+    multiply_upper_triangular_inplace(it, Uinv, rhs);
+    return rhs;
+  }
+};
+
+template <typename It, typename X, typename Phi>
+SparseTPOperator<It> createInterpolationOperator(It it, Phi phi, X x) {
+  auto n = it.indexBounds();
+  size_t d = it.dim();
+
+  namespace ublas = boost::numeric::ublas;
+  typedef ublas::matrix<double> Matrix;
+
+  std::vector<Matrix> matrices;
+
+  // create matrices and inverted LU decompositions
+  for (size_t k = 0; k < d; ++k) {
+    // std::cout << "Matrix creation loop\n";
+    Matrix Mk(n[k], n[k]);
+    for (size_t i = 0; i < n[k]; ++i) {
+      for (size_t j = 0; j < n[k]; ++j) {
+        Mk(i, j) = phi[k](j)(x[k](i));
+      }
+    }
+
+    matrices.push_back(Mk);
+  }
+
+  return SparseTPOperator<It>(it, matrices);
+}
+
+template <typename It, typename Func, typename X>
+MultiDimVector evaluateFunction(It it, Func f, X x) {
+  size_t d = it.dim();
+  auto n = it.indexBounds();
+  MultiDimVector v(n[0]);
+
+  it.reset();
+  std::vector<double> point(d);
+  while (not it.done()) {
+    size_t last_dim_count = it.lastDimensionCount();
+    for (size_t dim = 0; dim < d - 1; ++dim) {
+      point[dim] = x[dim](it.indexAt(dim));
+    }
+
+    for (size_t last_dim_idx = 0; last_dim_idx < last_dim_count; ++last_dim_idx) {
+      point[d - 1] = x[d - 1](last_dim_idx);
+
+      double function_value = f(point);
+
+      v.data[it.firstIndex()].push_back(function_value);
+    }
+
+    it.next();
+  }
+
+  return v;
+}
+
+inline std::ostream &operator<<(std::ostream &os, boost::numeric::ublas::matrix<double> matrix) {
+  os << "[";
+  for (size_t i = 0; i < matrix.size1(); ++i) {
+    for (size_t j = 0; j < matrix.size2(); ++j) {
+      os << matrix(i, j) << "   ";
+    }
+    os << "\n";
+  }
+  os << " ]";
+  return os;
+}
+
+template <class T>
+inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
+  os << "[";
+  for (auto ii = v.begin(); ii != v.end(); ++ii) {
+    os << " " << *ii;
+  }
+  os << " ]";
+  return os;
+}
+
 template <typename Func, typename It, typename Phi, typename X>
 MultiDimVector interpolate(Func f, It it, Phi phi, X x) {
   auto n = it.indexBounds();
@@ -482,182 +628,6 @@ MultiDimVector interpolate(Func f, It it, Phi phi, X x) {
   // the first index of w
 
   multiply_upper_triangular_inplace(it, Uinv, v);
-
-  return v;
-}
-
-template <typename Func, typename It, typename Phi, typename X>
-MultiDimVector interpolate2(Func f, It it, Phi phi, X x) {
-  auto n = it.indexBounds();
-  size_t d = it.dim();
-
-  namespace ublas = boost::numeric::ublas;
-  typedef ublas::matrix<double> Matrix;
-
-  std::vector<Matrix> Linv, Uinv;
-
-  // create matrices and inverted LU decompositions
-  for (size_t k = 0; k < d; ++k) {
-    // std::cout << "Matrix creation loop\n";
-    Matrix Mk(n[k], n[k]);
-    for (size_t i = 0; i < n[k]; ++i) {
-      for (size_t j = 0; j < n[k]; ++j) {
-        Mk(i, j) = phi[k](j)(x[k](i));
-      }
-    }
-
-    // std::cout << "Matrices:\n";
-
-    // std::cout << Mk << "\n";
-
-    ublas::lu_factorize(Mk);
-
-    // std::cout << Mk << "\n";
-
-    Matrix Lkinv = ublas::identity_matrix<double>(n[k]);
-    Matrix Ukinv = ublas::identity_matrix<double>(n[k]);
-    ublas::inplace_solve(Mk, Lkinv, ublas::unit_lower_tag());
-    ublas::inplace_solve(Mk, Ukinv, ublas::upper_tag());
-
-    // std::cout << Lkinv << "\n";
-
-    // std::cout << Ukinv << "\n";
-
-    Linv.push_back(Lkinv);
-    Uinv.push_back(Ukinv);
-  }
-
-  MultiDimVector v(n[0]);
-
-  std::cout << "Compute function values\n";
-
-  // compute function values
-  it.reset();
-  std::vector<double> point(d);
-  while (not it.done()) {
-    size_t last_dim_count = it.lastDimensionCount();
-    for (size_t dim = 0; dim < d - 1; ++dim) {
-      point[dim] = x[dim](it.indexAt(dim));
-    }
-
-    for (size_t last_dim_idx = 0; last_dim_idx < last_dim_count; ++last_dim_idx) {
-      point[d - 1] = x[d - 1](last_dim_idx);
-
-      double function_value = f(point);
-
-      v.data[it.firstIndex()].push_back(function_value);
-    }
-
-    it.next();
-  }
-
-  size_t number = 0;
-  for (size_t dim = 0; dim < n[0]; ++dim) {
-    number += v.data[dim].size();
-  }
-  std::cout << "number of points: " << number << "\n";
-
-  //  for (size_t i = 0; i < v.data.size(); ++i) {
-  //    std::cout << v.data[i] << "\n\n";
-  //  }
-
-  size_t num_sum_op = 0;
-
-  std::cout << "First matrix multiplication\n";
-
-  // multiply by L^{-1}
-  // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
-  // the first index of w
-
-  for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector w(n[k]);
-    for (size_t idx = 0; idx < n[k]; ++idx) {
-      // TODO: make compatible with other iterators
-      w.data[idx].reserve(v.data[idx].size());
-    }
-
-    auto &Lkinv = Linv[k];
-    it.reset();
-
-    size_t second_v_index = 0;
-
-    double *data_pointer = &v.data[0][0];
-
-    it.iterate(
-        [&](size_t last_dim_count) {
-          double *offset_data_pointer = data_pointer + second_v_index;
-          for (size_t i = 0; i < last_dim_count; ++i) {
-            double sum = 0.0;
-            for (size_t j = 0; j <= i; ++j) {
-              sum += Lkinv(i, j) * (*(offset_data_pointer + j));
-              ++num_sum_op;
-            }
-            w.data[i].push_back(sum);
-          }
-          second_v_index += last_dim_count;
-        },
-        [&](size_t first_dim_index) {
-          second_v_index = 0;
-          data_pointer = &v.data[first_dim_index][0];
-        });
-
-    v.swap(w);
-
-    it = it.cycle();
-
-    //    for (size_t i = 0; i < v.data.size(); ++i) {
-    //      std::cout << v.data[i] << "\n\n";
-    //    }
-  }
-
-  std::cout << "Second matrix multiplication\n";
-
-  // multiply by U^{-1}
-  // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
-  // the first index of w
-
-  for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector w(n[k]);
-    for (size_t idx = 0; idx < n[k]; ++idx) {
-      // TODO: make compatible with other iterators
-      w.data[idx].reserve(v.data[idx].size());
-    }
-
-    auto &Ukinv = Uinv[k];
-    it.reset();
-
-    size_t second_v_index = 0;
-
-    double *data_pointer = &v.data[0][0];
-
-    it.iterate(
-        [&](size_t last_dim_count) {
-          double *offset_data_pointer = data_pointer + second_v_index;
-          for (size_t i = 0; i < last_dim_count; ++i) {
-            double sum = 0.0;
-            for (size_t j = i; j < last_dim_count; ++j) {
-              sum += Ukinv(i, j) * (*(offset_data_pointer + j));
-              ++num_sum_op;
-            }
-            w.data[i].push_back(sum);
-          }
-          second_v_index += last_dim_count;
-        },
-        [&](size_t first_dim_index) {
-          second_v_index = 0;
-          data_pointer = &v.data[first_dim_index][0];
-        });
-
-    v.swap(w);
-
-    it = it.cycle();
-
-    //    for (size_t i = 0; i < v.data.size(); ++i) {
-    //      std::cout << v.data[i] << "\n\n";
-    //    }
-  }
-
-  std::cout << "Total number of summation operations: " << num_sum_op << "\n";
 
   return v;
 }
