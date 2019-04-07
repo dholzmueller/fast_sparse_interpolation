@@ -68,10 +68,10 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
 
 // using namespace fsi;
 int main() {
-  constexpr size_t d = 30;
-  size_t bound = 8;
-  fsi::TemplateBoundedSumIterator<d> it(bound);
-  // fsi::BoundedSumIterator it(d, bound);
+  constexpr size_t d = 5;
+  size_t bound = 57;
+  // fsi::TemplateBoundedSumIterator<d> it(bound);
+  fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
   std::vector<GoldenPointDistribution> x(d);
   auto start = std::chrono::high_resolution_clock::now();

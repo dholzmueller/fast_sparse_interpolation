@@ -12,6 +12,23 @@
 
 namespace fsi {
 
+size_t binom(size_t n, size_t k) {
+  if (2 * k > n) {
+    k = n - k;
+  }
+
+  size_t prod = 1;
+  size_t upper_factor = n + 1 - k;
+  size_t lower_factor = 1;
+  while (upper_factor <= n) {
+    prod *= upper_factor;
+    prod /= lower_factor;
+    upper_factor += 1;
+    lower_factor += 1;
+  }
+  return prod;
+}
+
 template <size_t dim>
 void iterateRecursive(size_t remaining, std::function<void(size_t)> callback) {
   for (size_t val = 0; val <= remaining; ++val) {
@@ -73,11 +90,11 @@ class TemplateBoundedSumIterator {
     }
   }
 
-  size_t firstIndex() { return index_head[0]; }
+  size_t firstIndex() const { return index_head[0]; }
 
-  size_t indexAt(size_t dim) { return index_head[dim]; }
+  size_t indexAt(size_t dim) const { return index_head[dim]; }
 
-  bool done() { return is_done; }
+  bool done() const { return is_done; }
 
   void reset() {
     index_head = std::vector<size_t>(d - 1, 0);
@@ -85,15 +102,15 @@ class TemplateBoundedSumIterator {
     is_done = false;
   }
 
-  size_t dim() { return d; }
+  size_t dim() const { return d; }
 
-  std::vector<size_t> indexBounds() { return std::vector<size_t>(d, bound + 1); }
+  std::vector<size_t> indexBounds() const { return std::vector<size_t>(d, bound + 1); }
 
   /**
    * Returns an iterator where the last index moves to the front. For an index set defined by a sum
    * bound, nothing changes.
    */
-  TemplateBoundedSumIterator<d> cycle() {
+  TemplateBoundedSumIterator<d> cycle() const {
     TemplateBoundedSumIterator<d> it = *this;
     it.reset();
     return it;
@@ -141,11 +158,11 @@ class BoundedSumIterator {
     }
   }
 
-  size_t firstIndex() { return index_head[0]; }
+  size_t firstIndex() const { return index_head[0]; }
 
-  size_t indexAt(size_t dim) { return index_head[dim]; }
+  size_t indexAt(size_t dim) const { return index_head[dim]; }
 
-  bool done() { return is_done; }
+  bool done() const { return is_done; }
 
   void reset() {
     index_head = std::vector<size_t>(d - 1, 0);
@@ -153,9 +170,11 @@ class BoundedSumIterator {
     is_done = false;
   }
 
-  size_t dim() { return d; }
+  size_t dim() const { return d; }
 
-  std::vector<size_t> indexBounds() { return std::vector<size_t>(d, bound + 1); }
+  std::vector<size_t> indexBounds() const { return std::vector<size_t>(d, bound + 1); }
+
+  size_t numValues() const { return binom(bound + d, d); }
 
   /**
    * Returns an iterator where the last index moves to the front. For an index set defined by a sum
@@ -265,9 +284,10 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
 }
 
 template <typename It>
-void multiply_lower_triangular_inplace(It const &it,
-                                       std::vector<boost::numeric::ublas::matrix<double>> L,
+void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas::matrix<double>> L,
                                        MultiDimVector &v) {
+  // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
+  // the first index of w
   size_t d = L.size();
   auto n = it.indexBounds();
 
@@ -319,9 +339,10 @@ void multiply_lower_triangular_inplace(It const &it,
 }
 
 template <typename It>
-void multiply_upper_triangular_inplace(It const &it,
-                                       std::vector<boost::numeric::ublas::matrix<double>> U,
+void multiply_upper_triangular_inplace(It it, std::vector<boost::numeric::ublas::matrix<double>> U,
                                        MultiDimVector &v) {
+  // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
+  // the first index of w
   size_t d = U.size();
   auto n = it.indexBounds();
 
@@ -442,65 +463,17 @@ MultiDimVector interpolate(Func f, It it, Phi phi, X x) {
     number += v.data[dim].size();
   }
   std::cout << "number of points: " << number << "\n";
+  std::cout << "alternative number of points: " << it.numValues() << "\n";
 
   //  for (size_t i = 0; i < v.data.size(); ++i) {
   //    std::cout << v.data[i] << "\n\n";
   //  }
 
-  size_t num_sum_op = 0;
-
   std::cout << "First matrix multiplication\n";
 
   // multiply by L^{-1}
-  // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
-  // the first index of w
 
-  for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector w(n[k]);
-    for (size_t idx = 0; idx < n[k]; ++idx) {
-      // TODO: make compatible with other iterators
-      w.data[idx].reserve(v.data[idx].size());
-    }
-
-    auto &Lkinv = Linv[k];
-    it.reset();
-
-    size_t first_v_index = 0;
-    size_t second_v_index = 0;
-
-    double *data_pointer = &v.data[0][0];
-    size_t data_size = v.data[0].size();
-
-    while (not it.done()) {
-      size_t last_dim_count = it.lastDimensionCount();
-      double *offset_data_pointer = data_pointer + second_v_index;
-      for (size_t i = 0; i < last_dim_count; ++i) {
-        double sum = 0.0;
-        for (size_t j = 0; j <= i; ++j) {
-          sum += Lkinv(i, j) * (*(offset_data_pointer + j));
-          ++num_sum_op;
-        }
-        w.data[i].push_back(sum);
-      }
-      second_v_index += last_dim_count;
-      if (second_v_index >= data_size) {
-        second_v_index = 0;
-        first_v_index += 1;
-        data_pointer = &v.data[first_v_index][0];
-        data_size = v.data[first_v_index].size();
-      }
-
-      it.next();
-    }
-
-    v.swap(w);
-
-    it = it.cycle();
-
-    //    for (size_t i = 0; i < v.data.size(); ++i) {
-    //      std::cout << v.data[i] << "\n\n";
-    //    }
-  }
+  multiply_lower_triangular_inplace(it, Linv, v);
 
   std::cout << "Second matrix multiplication\n";
 
@@ -508,54 +481,7 @@ MultiDimVector interpolate(Func f, It it, Phi phi, X x) {
   // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
   // the first index of w
 
-  for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector w(n[k]);
-    for (size_t idx = 0; idx < n[k]; ++idx) {
-      // TODO: make compatible with other iterators
-      w.data[idx].reserve(v.data[idx].size());
-    }
-
-    auto &Ukinv = Uinv[k];
-    it.reset();
-
-    size_t first_v_index = 0;
-    size_t second_v_index = 0;
-
-    double *data_pointer = &v.data[0][0];
-    size_t data_size = v.data[0].size();
-
-    while (not it.done()) {
-      size_t last_dim_count = it.lastDimensionCount();
-      double *offset_data_pointer = data_pointer + second_v_index;
-      for (size_t i = 0; i < last_dim_count; ++i) {
-        double sum = 0.0;
-        for (size_t j = i; j < last_dim_count; ++j) {
-          sum += Ukinv(i, j) * (*(offset_data_pointer + j));
-          ++num_sum_op;
-        }
-        w.data[i].push_back(sum);
-      }
-      second_v_index += last_dim_count;
-      if (second_v_index >= data_size) {
-        second_v_index = 0;
-        first_v_index += 1;
-        data_pointer = &v.data[first_v_index][0];
-        data_size = v.data[first_v_index].size();
-      }
-
-      it.next();
-    }
-
-    it = it.cycle();
-
-    v.swap(w);
-
-    //    for (size_t i = 0; i < v.data.size(); ++i) {
-    //      std::cout << v.data[i] << "\n\n";
-    //    }
-  }
-
-  std::cout << "Total number of summation operations: " << num_sum_op << "\n";
+  multiply_upper_triangular_inplace(it, Uinv, v);
 
   return v;
 }
