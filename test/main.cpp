@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include <Interpolation.hpp>
+#include <Iterators.hpp>
 #include <chrono>
 #include <cmath>
 #include <iostream>
