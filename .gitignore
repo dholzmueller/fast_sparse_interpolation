@@ -13,6 +13,7 @@
 *.auxlock
 *.dpth
 *.md5
+*.csv
 
 build/*
 TexCode/*

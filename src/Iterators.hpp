@@ -9,7 +9,7 @@
 
 namespace fsi {
 
-size_t binom(size_t n, size_t k) {
+inline size_t binom(size_t n, size_t k) {
   if (2 * k > n) {
     k = n - k;
   }
@@ -25,6 +25,47 @@ size_t binom(size_t n, size_t k) {
   }
   return prod;
 }
+
+template <typename JumpIt>
+class StepIterator {
+  JumpIt jump_it;
+  size_t first_dim_value;
+  size_t last_dim_value;
+  size_t last_dim_count;
+  size_t tail_dims_counter;
+
+ public:
+  StepIterator(JumpIt jump_it)
+      : jump_it(jump_it),
+        first_dim_value(0),
+        last_dim_value(0),
+        last_dim_count(jump_it.lastDimensionCount()),
+        tail_dims_counter(0){};
+
+  void next() {
+    tail_dims_counter += 1;
+    last_dim_value += 1;
+    if (last_dim_value >= last_dim_count) {
+      last_dim_value = 0;
+      jump_it.next();
+      if (jump_it.firstIndex() != first_dim_value) {
+        first_dim_value = jump_it.firstIndex();
+        tail_dims_counter = 0;
+      }
+      last_dim_count = jump_it.lastDimensionCount();
+    }
+  }
+
+  bool done() { return jump_it.done(); }
+
+  void reset() {
+    jump_it.reset();
+    first_dim_value = 0;
+    last_dim_value = 0;
+    last_dim_count = jump_it.lastDimensionCount();
+    tail_dims_counter = 0;
+  }
+};
 
 template <size_t d>
 class TemplateBoundedSumIterator {
