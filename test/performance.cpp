@@ -34,26 +34,35 @@ void measurePerformance() {
   // std::vector < size_t > dimensions = {2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64 };
   // std::vector<size_t> dimensions = {5, 10};
 
-  std::vector<size_t> dimensions = {2, 4, 8, 16, 32};
+  std::vector<size_t> dimensions = {2, 4, 8, 16, 32, 64};
   // size_t maxNumPoints = 20000000;
-  size_t maxNumPoints = 500000;
+  size_t maxNumPoints = 30000000;
 
   std::ostringstream stream;
 
-  size_t approxNumSteps = 8;
+  // minimum quotient of number of points of current configuration to
+  // previous configuration
+  double minQuotient = 4.0;
+
+  // maximum runtime in seconds
+  // if exceeded, we do not try higher numbers of points
+  double maxRuntime = 2.0;
+
+  // perform 2*k+1 measurements per configuration
   size_t k = 1;
 
   for (size_t d : dimensions) {
     std::cout << "Dimension: " << d << "\n";
-    size_t maxBound = 0;
 
-    while (fsi::binom(maxBound + d, d) <= maxNumPoints) {
-      maxBound += 1;
-    }
+    size_t last_num_points = 0;
 
-    size_t stepsize = maxBound / approxNumSteps + 1;
+    for (size_t bound = 1; true; ++bound) {
+      size_t num_points = fsi::binom(bound + d, d);
+      if (num_points > maxNumPoints) break;
+      if (num_points < last_num_points * minQuotient) continue;
 
-    for (size_t bound = 2; bound < maxBound; bound += stepsize) {
+      last_num_points = num_points;
+
       std::cout << "Bound: " << bound << "\n";
       double runtime = measureRuntime(
           [&]() {
@@ -73,6 +82,8 @@ void measurePerformance() {
           k);
 
       stream << d << ", " << bound << ", " << fsi::binom(bound + d, d) << ", " << runtime << "\n";
+
+      if (runtime > maxRuntime) break;
     }
   }
 
