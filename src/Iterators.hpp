@@ -192,6 +192,8 @@ class BoundedSumIterator {
 
   size_t dim() const { return d; }
 
+  size_t firstIndexBound() const { return bound + 1; }
+
   std::vector<size_t> indexBounds() const { return std::vector<size_t>(d, bound + 1); }
 
   size_t numValues() const { return binom(bound + d, d); }

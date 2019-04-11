@@ -69,9 +69,10 @@ void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas:
 
   for (int k = d - 1; k >= 0; --k) {
     MultiDimVector w(n[k]);
+    std::vector<size_t> indexes(n[k], 0);
+    auto sizes = it.numValuesPerFirstIndex();
     for (size_t idx = 0; idx < n[k]; ++idx) {
-      // TODO: make compatible with other iterators
-      w.data[idx].reserve(v.data[idx].size());
+      w.data[idx].resize(sizes[idx]);
     }
 
     auto &Lk = L[k];
@@ -91,7 +92,8 @@ void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas:
         for (size_t j = 0; j <= i; ++j) {
           sum += Lk(i, j) * (*(offset_data_pointer + j));
         }
-        w.data[i].push_back(sum);
+        w.data[i][indexes[i]] = sum;
+        ++indexes[i];
       }
       second_v_index += last_dim_count;
       if (second_v_index >= data_size) {
@@ -124,9 +126,10 @@ void multiply_upper_triangular_inplace(It it, std::vector<boost::numeric::ublas:
 
   for (int k = d - 1; k >= 0; --k) {
     MultiDimVector w(n[k]);
+    std::vector<size_t> indexes(n[k], 0);
+    auto sizes = it.numValuesPerFirstIndex();
     for (size_t idx = 0; idx < n[k]; ++idx) {
-      // TODO: make compatible with other iterators
-      w.data[idx].reserve(v.data[idx].size());
+      w.data[idx].resize(sizes[idx]);
     }
 
     auto &Uk = U[k];
@@ -146,7 +149,8 @@ void multiply_upper_triangular_inplace(It it, std::vector<boost::numeric::ublas:
         for (size_t j = i; j < last_dim_count; ++j) {
           sum += Uk(i, j) * (*(offset_data_pointer + j));
         }
-        w.data[i].push_back(sum);
+        w.data[i][indexes[i]] = sum;
+        ++indexes[i];
       }
       second_v_index += last_dim_count;
       if (second_v_index >= data_size) {

@@ -26,8 +26,8 @@ limitations under the License.
  */
 
 void runFunctions() {
-  constexpr size_t d = 3;
-  size_t bound = 100;
+  constexpr size_t d = 30;
+  size_t bound = 8;
   fsi::TemplateBoundedSumIterator<d> it(bound);
   // fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
