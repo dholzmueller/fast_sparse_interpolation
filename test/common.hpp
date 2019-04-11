@@ -70,7 +70,8 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
   return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os, fsi::MultiDimVector const &v) {
+template <typename It>
+std::ostream &operator<<(std::ostream &os, fsi::MultiDimVector<It> const &v) {
   for (size_t i = 0; i < v.data.size(); ++i) {
     std::cout << v.data[i] << "\n\n";
   }

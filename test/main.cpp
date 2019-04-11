@@ -26,10 +26,10 @@ limitations under the License.
  */
 
 void runFunctions() {
-  constexpr size_t d = 30;
-  size_t bound = 8;
-  fsi::TemplateBoundedSumIterator<d> it(bound);
-  // fsi::BoundedSumIterator it(d, bound);
+  constexpr size_t d = 8;
+  size_t bound = 24;
+  // fsi::TemplateBoundedSumIterator<d> it(bound);
+  fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
   std::vector<GoldenPointDistribution> x(d);
 

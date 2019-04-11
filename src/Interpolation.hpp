@@ -44,11 +44,20 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
   return os;
 }
 
+template <typename It>
 class MultiDimVector {
+  It it;
+
  public:
   // put the first dimension into an outer vector for processing reasons
   std::vector<std::vector<double>> data;
-  MultiDimVector(size_t n) : data(n){};
+
+  MultiDimVector(It it) : it(it), data(it.firstIndexBound()) {
+    auto sizes = it.numValuesPerFirstIndex();
+    for (size_t i = 0; i < sizes.size(); ++i) {
+      data[i].resize(sizes[i]);
+    }
+  };
 
   void swap(MultiDimVector &other) { data.swap(other.data); }
 
@@ -57,23 +66,21 @@ class MultiDimVector {
       data[dim].clear();
     }
   }
+
+  It getJumpIterator() const { return it; }
 };
 
 template <typename It>
-void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas::matrix<double>> L,
-                                       MultiDimVector &v) {
+void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix<double>> L,
+                                       MultiDimVector<It> &v) {
   // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
   // the first index of w
   size_t d = L.size();
-  auto n = it.indexBounds();
+  It it = v.getJumpIterator();
 
   for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector w(n[k]);
-    std::vector<size_t> indexes(n[k], 0);
-    auto sizes = it.numValuesPerFirstIndex();
-    for (size_t idx = 0; idx < n[k]; ++idx) {
-      w.data[idx].resize(sizes[idx]);
-    }
+    MultiDimVector<It> w(it);
+    std::vector<size_t> indexes(w.data.size(), 0);
 
     auto &Lk = L[k];
     it.reset();
@@ -117,20 +124,16 @@ void multiply_lower_triangular_inplace(It it, std::vector<boost::numeric::ublas:
 }
 
 template <typename It>
-void multiply_upper_triangular_inplace(It it, std::vector<boost::numeric::ublas::matrix<double>> U,
-                                       MultiDimVector &v) {
+void multiply_upper_triangular_inplace(std::vector<boost::numeric::ublas::matrix<double>> U,
+                                       MultiDimVector<It> &v) {
   // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
   // the first index of w
   size_t d = U.size();
-  auto n = it.indexBounds();
+  It it = v.getJumpIterator();
 
   for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector w(n[k]);
-    std::vector<size_t> indexes(n[k], 0);
-    auto sizes = it.numValuesPerFirstIndex();
-    for (size_t idx = 0; idx < n[k]; ++idx) {
-      w.data[idx].resize(sizes[idx]);
-    }
+    MultiDimVector<It> w(it);
+    std::vector<size_t> indexes(w.data.size(), 0);
 
     auto &Uk = U[k];
     it.reset();
@@ -264,17 +267,17 @@ class SparseTPOperator {
     }
   }
 
-  MultiDimVector apply(MultiDimVector input) {
+  MultiDimVector<It> apply(MultiDimVector<It> input) {
     prepareApply();
-    multiply_upper_triangular_inplace(it, U, input);
-    multiply_lower_triangular_inplace(it, L, input);
+    multiply_upper_triangular_inplace(U, input);
+    multiply_lower_triangular_inplace(L, input);
     return input;
   }
 
-  MultiDimVector solve(MultiDimVector rhs) {
+  MultiDimVector<It> solve(MultiDimVector<It> rhs) {
     prepareSolve();
-    multiply_lower_triangular_inplace(it, Linv, rhs);
-    multiply_upper_triangular_inplace(it, Uinv, rhs);
+    multiply_lower_triangular_inplace(Linv, rhs);
+    multiply_upper_triangular_inplace(Uinv, rhs);
     return rhs;
   }
 };
@@ -306,10 +309,11 @@ SparseTPOperator<It> createInterpolationOperator(It it, Phi phi, X x) {
 }
 
 template <typename It, typename Func, typename X>
-MultiDimVector evaluateFunction(It it, Func f, X x) {
+MultiDimVector<It> evaluateFunction(It it, Func f, X x) {
   size_t d = it.dim();
   auto n = it.indexBounds();
-  MultiDimVector v(n[0]);
+  MultiDimVector<It> v(it);
+  std::vector<size_t> indexes(v.data.size(), 0);
 
   it.reset();
   std::vector<double> point(d);
@@ -324,7 +328,8 @@ MultiDimVector evaluateFunction(It it, Func f, X x) {
 
       double function_value = f(point);
 
-      v.data[it.firstIndex()].push_back(function_value);
+      size_t first_index = it.firstIndex();
+      v.data[first_index][indexes[first_index]++] = function_value;
     }
 
     it.next();
@@ -334,7 +339,7 @@ MultiDimVector evaluateFunction(It it, Func f, X x) {
 }
 
 template <typename Func, typename It, typename Phi, typename X>
-MultiDimVector interpolate(Func f, It it, Phi phi, X x) {
+MultiDimVector<It> interpolate(Func f, It it, Phi phi, X x) {
   auto rhs = evaluateFunction(it, f, x);
   auto op = createInterpolationOperator(it, phi, x);
   return op.solve(rhs);
