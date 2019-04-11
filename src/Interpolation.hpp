@@ -19,6 +19,7 @@ limitations under the License.
 #include <boost/numeric/ublas/matrix.hpp>
 #include <iostream>
 #include <vector>
+#include "Iterators.hpp"
 
 namespace fsi {
 
@@ -48,6 +49,47 @@ template <typename It>
 class MultiDimVector {
   It it;
 
+  class Iterator {
+    MultiDimVector<It> &v;
+    StepIterator<It> stepIt;
+
+   public:
+    Iterator(MultiDimVector<It> &v, It it) : v(v), stepIt(it){};
+
+    typedef Iterator self_type;
+    typedef double value_type;
+    typedef double &reference;
+    typedef double *pointer;
+    typedef std::forward_iterator_tag iterator_category;
+    typedef int difference_type;
+
+    std::vector<size_t> index() { return stepIt.index(); }
+
+    // post-increment
+    self_type operator++() {
+      self_type i = *this;
+      stepIt.next();
+      return i;
+    }
+
+    // pre-increment
+    self_type operator++(int junk) {
+      stepIt.next();
+      return *this;
+    }
+    reference operator*() { return v.data[stepIt.firstIndex()][stepIt.tailDimsCounter()]; }
+    pointer operator->() { return &(*(*this)); }
+    bool operator==(const self_type &rhs) {
+      if (stepIt.valid() != rhs.stepIt.valid()) {
+        return false;
+      }
+
+      return stepIt.valid() or (stepIt.firstIndex() == rhs.stepIt.firstIndex() &&
+                                stepIt.tailDimsCounter() == rhs.stepIt.tailDimsCounter());
+    }
+    bool operator!=(const self_type &rhs) { return !(*this == rhs); }
+  };
+
  public:
   // put the first dimension into an outer vector for processing reasons
   std::vector<std::vector<double>> data;
@@ -59,7 +101,10 @@ class MultiDimVector {
     }
   };
 
-  void swap(MultiDimVector &other) { data.swap(other.data); }
+  void swap(MultiDimVector<It> &other) {
+    data.swap(other.data);
+    std::swap(it, other.it);
+  }
 
   void clear() {
     for (size_t dim = 0; dim < data.size(); ++dim) {
@@ -68,7 +113,57 @@ class MultiDimVector {
   }
 
   It getJumpIterator() const { return it; }
+
+  Iterator begin() { return Iterator(*this, it); }
+
+  Iterator end() {
+    It end_it = it;
+    end_it.goToEnd();
+    return Iterator(*this, end_it);
+  }
+
+  MultiDimVector<It> &operator+=(MultiDimVector<It> const &other) {
+    for (size_t i = 0; i < data.size(); ++i) {
+      for (size_t j = 0; j < data[i].size(); ++j) {
+        data[i][j] += other.data[i][j];
+      }
+    }
+    return *this;
+  }
+
+  MultiDimVector<It> &operator-=(MultiDimVector<It> const &other) {
+    for (size_t i = 0; i < data.size(); ++i) {
+      for (size_t j = 0; j < data[i].size(); ++j) {
+        data[i][j] -= other.data[i][j];
+      }
+    }
+    return *this;
+  }
 };
+
+template <typename It>
+MultiDimVector<It> operator+(MultiDimVector<It> first, MultiDimVector<It> const &second) {
+  first += second;
+  return first;
+}
+
+template <typename It>
+MultiDimVector<It> operator-(MultiDimVector<It> first, MultiDimVector<It> const &second) {
+  first -= second;
+  return first;
+}
+
+template <typename It>
+double squared_l2_norm(MultiDimVector<It> const &v) {
+  double sum = 0.0;
+  for (size_t i = 0; i < v.data.size(); ++i) {
+    for (size_t j = 0; j < v.data[i].size(); ++j) {
+      double value = v.data[i][j];
+      sum += value * value;
+    }
+  }
+  return sum;
+}
 
 template <typename It>
 void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix<double>> L,
@@ -91,7 +186,7 @@ void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix
     double *data_pointer = &v.data[0][0];
     size_t data_size = v.data[0].size();
 
-    while (not it.done()) {
+    while (it.valid()) {
       size_t last_dim_count = it.lastDimensionCount();
       double *offset_data_pointer = data_pointer + second_v_index;
       for (size_t i = 0; i < last_dim_count; ++i) {
@@ -99,8 +194,7 @@ void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix
         for (size_t j = 0; j <= i; ++j) {
           sum += Lk(i, j) * (*(offset_data_pointer + j));
         }
-        w.data[i][indexes[i]] = sum;
-        ++indexes[i];
+        w.data[i][indexes[i]++] = sum;
       }
       second_v_index += last_dim_count;
       if (second_v_index >= data_size) {
@@ -144,7 +238,7 @@ void multiply_upper_triangular_inplace(std::vector<boost::numeric::ublas::matrix
     double *data_pointer = &v.data[0][0];
     size_t data_size = v.data[0].size();
 
-    while (not it.done()) {
+    while (it.valid()) {
       size_t last_dim_count = it.lastDimensionCount();
       double *offset_data_pointer = data_pointer + second_v_index;
       for (size_t i = 0; i < last_dim_count; ++i) {
@@ -152,8 +246,7 @@ void multiply_upper_triangular_inplace(std::vector<boost::numeric::ublas::matrix
         for (size_t j = i; j < last_dim_count; ++j) {
           sum += Uk(i, j) * (*(offset_data_pointer + j));
         }
-        w.data[i][indexes[i]] = sum;
-        ++indexes[i];
+        w.data[i][indexes[i]++] = sum;
       }
       second_v_index += last_dim_count;
       if (second_v_index >= data_size) {
@@ -317,7 +410,7 @@ MultiDimVector<It> evaluateFunction(It it, Func f, X x) {
 
   it.reset();
   std::vector<double> point(d);
-  while (not it.done()) {
+  while (it.valid()) {
     size_t last_dim_count = it.lastDimensionCount();
     for (size_t dim = 0; dim < d - 1; ++dim) {
       point[dim] = x[dim](it.indexAt(dim));

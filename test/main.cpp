@@ -26,8 +26,8 @@ limitations under the License.
  */
 
 void runFunctions() {
-  constexpr size_t d = 8;
-  size_t bound = 24;
+  constexpr size_t d = 30;
+  size_t bound = 8;
   // fsi::TemplateBoundedSumIterator<d> it(bound);
   fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
@@ -55,6 +55,12 @@ void runFunctions() {
   // std::cout << b << "\n";
 
   std::cout << "Number of points: " << it.numValues() << "\n";
+
+  std::cout << "Reconstruction error (L2 norm): " << sqrt(fsi::squared_l2_norm(b - rhs)) << "\n";
+
+  //  for (auto it = c.begin(); it != c.end(); ++it) {
+  //    std::cout << "Value at index " << it.index() << ": " << *it << "\n";
+  //  }
 
   // for (size_t i = 0; i < result.data.size(); ++i) {
   //   std::cout << result.data[i] << "\n\n";
