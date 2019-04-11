@@ -15,9 +15,19 @@ limitations under the License.
 
 #include "common.hpp"
 
+// TODO: refactoring:
+/**
+ * - Interface for MultiDimVector
+ * - Typed interface?
+ * - Tests?
+ * - More point distributions / Basis functions?
+ * - Forward evaluation?
+ * - Computation of derivatives?
+ */
+
 void runFunctions() {
-  constexpr size_t d = 8;
-  size_t bound = 24;
+  constexpr size_t d = 3;
+  size_t bound = 100;
   fsi::TemplateBoundedSumIterator<d> it(bound);
   // fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
@@ -53,6 +63,6 @@ void runFunctions() {
 
 // using namespace fsi;
 int main() {
-  // runFunctions();
-  measurePerformance();
+  runFunctions();
+  // measurePerformance();
 }

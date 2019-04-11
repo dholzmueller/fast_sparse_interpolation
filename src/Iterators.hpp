@@ -196,6 +196,14 @@ class BoundedSumIterator {
 
   size_t numValues() const { return binom(bound + d, d); }
 
+  std::vector<size_t> numValuesPerFirstIndex() const {
+    std::vector<size_t> result;
+    for (size_t firstIndex = 0; firstIndex <= bound; ++firstIndex) {
+      result.push_back(binom((bound - firstIndex) + (d - 1), d - 1));
+    }
+    return result;
+  }
+
   /**
    * Returns an iterator where the last index moves to the front. For an index set defined by a sum
    * bound, nothing changes.

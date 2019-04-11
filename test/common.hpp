@@ -1,7 +1,17 @@
-// Copyright (C) 2008-today The SG++ project
-// This file is part of the SG++ project. For conditions of distribution and
-// use, please see the copyright notice provided with SG++ or at
-// sgpp.sparsegrids.org
+/* Copyright 2019 The fast_sparse_interpolation Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 
 #pragma once
 
@@ -67,20 +77,6 @@ inline std::ostream &operator<<(std::ostream &os, fsi::MultiDimVector const &v) 
 
   return os;
 }
-
-// TODO: refactoring:
-/**
- * - Interface for MultiDimVector
- * - Separate Functions for L- and U-Multiplication, Creation of LU decomposition, computation of
- * function values
- * - Pass a callback function to iterator instead of calling it.next() - this might improve the
- * vector functions (could be made recursive or even loops for fixed dimension implementation)
- * - Typed interface?
- * - Tests?
- * - More point distributions / Basis functions?
- * - Forward evaluation?
- * - Computation of derivatives?
- */
 
 inline double measure_execution_time(std::function<void()> f) {
   auto start = std::chrono::high_resolution_clock::now();
