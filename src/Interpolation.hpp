@@ -210,10 +210,6 @@ void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix
     v.swap(w);
 
     it = it.cycle();
-
-    //    for (size_t i = 0; i < v.data.size(); ++i) {
-    //      std::cout << v.data[i] << "\n\n";
-    //    }
   }
 }
 
@@ -262,10 +258,6 @@ void multiply_upper_triangular_inplace(std::vector<boost::numeric::ublas::matrix
     it = it.cycle();
 
     v.swap(w);
-
-    //    for (size_t i = 0; i < v.data.size(); ++i) {
-    //      std::cout << v.data[i] << "\n\n";
-    //    }
   }
 }
 

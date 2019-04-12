@@ -17,12 +17,10 @@ limitations under the License.
 
 // TODO: refactoring:
 /**
- * - Interface for MultiDimVector
- * - Typed interface?
  * - Tests?
  * - More point distributions / Basis functions?
- * - Forward evaluation?
  * - Computation of derivatives?
+ * - Examples?
  */
 
 void runFunctions() {
