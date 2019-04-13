@@ -24,8 +24,8 @@ limitations under the License.
  */
 
 void runFunctions() {
-  constexpr size_t d = 30;
-  size_t bound = 8;
+  constexpr size_t d = 8;
+  size_t bound = 30;
   // fsi::TemplateBoundedSumIterator<d> it(bound);
   fsi::BoundedSumIterator it(d, bound);
   std::vector<MonomialFunctions> phi(d);
@@ -52,6 +52,10 @@ void runFunctions() {
   auto b = op.apply(c);
   std::cout << "Time for apply(): " << timer.elapsed() << " s\n";
   // std::cout << b << "\n";
+
+  // timer.reset();
+  // fsi::cycle_vector_inplace(d, b);
+  // std::cout << "Time for cycling: " << timer.elapsed() << "s\n";
 
   std::cout << "Number of points: " << it.numValues() << "\n";
 

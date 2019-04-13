@@ -36,17 +36,17 @@ void measurePerformance() {
 
   std::vector<size_t> dimensions = {2, 4, 8, 16, 32, 64};
   // size_t maxNumPoints = 20000000;
-  size_t maxNumPoints = 30000000;
+  size_t maxNumPoints = 100000000;
 
   std::ostringstream stream;
 
   // minimum quotient of number of points of current configuration to
   // previous configuration
-  double minQuotient = 4.0;
+  double minQuotient = 2.0;
 
   // maximum runtime in seconds
-  // if exceeded, we do not try higher numbers of points
-  double maxRuntime = 2.0;
+  // we try not to exceed this runtime (based on previous predictions)
+  double maxRuntime = 10.0;
 
   // small value for denominator of a fraction
   double epsilon = 0.01;

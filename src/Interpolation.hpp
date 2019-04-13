@@ -114,6 +114,16 @@ class MultiDimVector {
 
   It getJumpIterator() const { return it; }
 
+  void resetWithJumpIterator(It const &other_it) {
+    it = other_it;
+    size_t n_1 = it.firstIndexBound();
+    data.resize(n_1);
+    auto sizes = it.numValuesPerFirstIndex();
+    for (size_t i = 0; i < n_1; ++i) {
+      data[i].resize(sizes[i]);
+    }
+  }
+
   Iterator begin() { return Iterator(*this, it); }
 
   Iterator end() {
@@ -166,98 +176,202 @@ double squared_l2_norm(MultiDimVector<It> const &v) {
 }
 
 template <typename It>
+void multiply_single_lower_triangular_inplace(boost::numeric::ublas::matrix<double> const &L,
+                                              MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
+  It it = v.getJumpIterator();
+  It cycled_it = it.cycle();
+  buffer.resetWithJumpIterator(cycled_it);
+
+  std::vector<size_t> indexes(buffer.data.size(), 0);
+
+  it.reset();
+
+  size_t first_v_index = 0;
+  size_t second_v_index = 0;
+
+  double *data_pointer = &v.data[0][0];
+  size_t data_size = v.data[0].size();
+
+  while (it.valid()) {
+    size_t last_dim_count = it.lastDimensionCount();
+    double *offset_data_pointer = data_pointer + second_v_index;
+    for (size_t i = 0; i < last_dim_count; ++i) {
+      double sum = 0.0;
+      for (size_t j = 0; j <= i; ++j) {
+        sum += L(i, j) * (*(offset_data_pointer + j));
+      }
+      buffer.data[i][indexes[i]++] = sum;
+    }
+    second_v_index += last_dim_count;
+    if (second_v_index >= data_size) {
+      second_v_index = 0;
+      first_v_index += 1;
+      data_pointer = &v.data[first_v_index][0];
+      data_size = v.data[first_v_index].size();
+    }
+
+    it.next();
+  }
+
+  v.swap(buffer);
+}
+
+template <typename It>
+void multiply_single_upper_triangular_inplace(boost::numeric::ublas::matrix<double> const &U,
+                                              MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
+  It it = v.getJumpIterator();
+  It cycled_it = it.cycle();
+  buffer.resetWithJumpIterator(cycled_it);
+
+  std::vector<size_t> indexes(buffer.data.size(), 0);
+
+  it.reset();
+
+  size_t first_v_index = 0;
+  size_t second_v_index = 0;
+
+  double *data_pointer = &v.data[0][0];
+  size_t data_size = v.data[0].size();
+
+  while (it.valid()) {
+    size_t last_dim_count = it.lastDimensionCount();
+    double *offset_data_pointer = data_pointer + second_v_index;
+    for (size_t i = 0; i < last_dim_count; ++i) {
+      double sum = 0.0;
+      for (size_t j = i; j < last_dim_count; ++j) {
+        sum += U(i, j) * (*(offset_data_pointer + j));
+      }
+      buffer.data[i][indexes[i]++] = sum;
+    }
+    second_v_index += last_dim_count;
+    if (second_v_index >= data_size) {
+      second_v_index = 0;
+      first_v_index += 1;
+      data_pointer = &v.data[first_v_index][0];
+      data_size = v.data[first_v_index].size();
+    }
+
+    it.next();
+  }
+
+  v.swap(buffer);
+}
+
+template <typename It>
+void multiply_single_arbitrary_inplace(boost::numeric::ublas::matrix<double> const &M,
+                                       MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
+  It it = v.getJumpIterator();
+  It cycled_it = it.cycle();
+  buffer.resetWithJumpIterator(cycled_it);
+
+  std::vector<size_t> indexes(buffer.data.size(), 0);
+
+  it.reset();
+
+  size_t first_v_index = 0;
+  size_t second_v_index = 0;
+
+  double *data_pointer = &v.data[0][0];
+  size_t data_size = v.data[0].size();
+
+  while (it.valid()) {
+    size_t last_dim_count = it.lastDimensionCount();
+    double *offset_data_pointer = data_pointer + second_v_index;
+    for (size_t i = 0; i < last_dim_count; ++i) {
+      double sum = 0.0;
+      for (size_t j = 0; j < last_dim_count; ++j) {
+        sum += M(i, j) * (*(offset_data_pointer + j));
+      }
+      buffer.data[i][indexes[i]++] = sum;
+    }
+    second_v_index += last_dim_count;
+    if (second_v_index >= data_size) {
+      second_v_index = 0;
+      first_v_index += 1;
+      data_pointer = &v.data[first_v_index][0];
+      data_size = v.data[first_v_index].size();
+    }
+
+    it.next();
+  }
+
+  v.swap(buffer);
+}
+
+template <typename It>
+void multiply_single_identity_inplace(MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
+  It it = v.getJumpIterator();
+  It cycled_it = it.cycle();
+  buffer.resetWithJumpIterator(cycled_it);
+
+  std::vector<size_t> indexes(buffer.data.size(), 0);
+
+  it.reset();
+
+  size_t first_v_index = 0;
+  size_t second_v_index = 0;
+
+  double *data_pointer = &v.data[0][0];
+  size_t data_size = v.data[0].size();
+
+  while (it.valid()) {
+    size_t last_dim_count = it.lastDimensionCount();
+    double *offset_data_pointer = data_pointer + second_v_index;
+    for (size_t i = 0; i < last_dim_count; ++i) {
+      buffer.data[i][indexes[i]++] = (*(offset_data_pointer + i));
+    }
+    second_v_index += last_dim_count;
+    if (second_v_index >= data_size) {
+      second_v_index = 0;
+      first_v_index += 1;
+      data_pointer = &v.data[first_v_index][0];
+      data_size = v.data[first_v_index].size();
+    }
+
+    it.next();
+  }
+
+  v.swap(buffer);
+}
+
+template <typename It>
+void cycle_vector_inplace(size_t num_times, MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
+  for (size_t i = 0; i < num_times; ++i) {
+    multiply_single_identity_inplace(v, buffer);
+  }
+}
+
+template <typename It>
+void cycle_vector_inplace(size_t num_times, MultiDimVector<It> &v) {
+  MultiDimVector<It> buffer(v.getJumpIterator());
+  for (size_t i = 0; i < num_times; ++i) {
+    multiply_single_identity_inplace(v, buffer);
+  }
+}
+
+template <typename It>
 void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix<double>> L,
-                                       MultiDimVector<It> &v) {
+                                       MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
   // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
   // the first index of w
   size_t d = L.size();
   It it = v.getJumpIterator();
 
   for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector<It> w(it);
-    std::vector<size_t> indexes(w.data.size(), 0);
-
-    auto &Lk = L[k];
-    it.reset();
-
-    size_t first_v_index = 0;
-    size_t second_v_index = 0;
-
-    double *data_pointer = &v.data[0][0];
-    size_t data_size = v.data[0].size();
-
-    while (it.valid()) {
-      size_t last_dim_count = it.lastDimensionCount();
-      double *offset_data_pointer = data_pointer + second_v_index;
-      for (size_t i = 0; i < last_dim_count; ++i) {
-        double sum = 0.0;
-        for (size_t j = 0; j <= i; ++j) {
-          sum += Lk(i, j) * (*(offset_data_pointer + j));
-        }
-        w.data[i][indexes[i]++] = sum;
-      }
-      second_v_index += last_dim_count;
-      if (second_v_index >= data_size) {
-        second_v_index = 0;
-        first_v_index += 1;
-        data_pointer = &v.data[first_v_index][0];
-        data_size = v.data[first_v_index].size();
-      }
-
-      it.next();
-    }
-
-    v.swap(w);
-
-    it = it.cycle();
+    multiply_single_lower_triangular_inplace(L[k], v, buffer);
   }
 }
 
 template <typename It>
 void multiply_upper_triangular_inplace(std::vector<boost::numeric::ublas::matrix<double>> U,
-                                       MultiDimVector<It> &v) {
+                                       MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
   // the multiplication is based on a cyclic permutation of the indices: the last index of v becomes
   // the first index of w
   size_t d = U.size();
   It it = v.getJumpIterator();
 
   for (int k = d - 1; k >= 0; --k) {
-    MultiDimVector<It> w(it);
-    std::vector<size_t> indexes(w.data.size(), 0);
-
-    auto &Uk = U[k];
-    it.reset();
-
-    size_t first_v_index = 0;
-    size_t second_v_index = 0;
-
-    double *data_pointer = &v.data[0][0];
-    size_t data_size = v.data[0].size();
-
-    while (it.valid()) {
-      size_t last_dim_count = it.lastDimensionCount();
-      double *offset_data_pointer = data_pointer + second_v_index;
-      for (size_t i = 0; i < last_dim_count; ++i) {
-        double sum = 0.0;
-        for (size_t j = i; j < last_dim_count; ++j) {
-          sum += Uk(i, j) * (*(offset_data_pointer + j));
-        }
-        w.data[i][indexes[i]++] = sum;
-      }
-      second_v_index += last_dim_count;
-      if (second_v_index >= data_size) {
-        second_v_index = 0;
-        first_v_index += 1;
-        data_pointer = &v.data[first_v_index][0];
-        data_size = v.data[first_v_index].size();
-      }
-
-      it.next();
-    }
-
-    it = it.cycle();
-
-    v.swap(w);
+    multiply_single_upper_triangular_inplace(U[k], v, buffer);
   }
 }
 
@@ -273,11 +387,12 @@ class SparseTPOperator {
   std::vector<boost::numeric::ublas::matrix<double>> U;
   std::vector<boost::numeric::ublas::matrix<double>> Linv;
   std::vector<boost::numeric::ublas::matrix<double>> Uinv;
+  MultiDimVector<It> buffer;
   size_t d;
 
  public:
   SparseTPOperator(It it, std::vector<boost::numeric::ublas::matrix<double>> matrices)
-      : it(it), M(matrices), d(matrices.size()){};
+      : it(it), M(matrices), buffer(it), d(matrices.size()){};
 
   void prepareCommon() {
     if (LU.size() > 0) {
@@ -354,15 +469,15 @@ class SparseTPOperator {
 
   MultiDimVector<It> apply(MultiDimVector<It> input) {
     prepareApply();
-    multiply_upper_triangular_inplace(U, input);
-    multiply_lower_triangular_inplace(L, input);
+    multiply_upper_triangular_inplace(U, input, buffer);
+    multiply_lower_triangular_inplace(L, input, buffer);
     return input;
   }
 
   MultiDimVector<It> solve(MultiDimVector<It> rhs) {
     prepareSolve();
-    multiply_lower_triangular_inplace(Linv, rhs);
-    multiply_upper_triangular_inplace(Uinv, rhs);
+    multiply_lower_triangular_inplace(Linv, rhs, buffer);
+    multiply_upper_triangular_inplace(Uinv, rhs, buffer);
     return rhs;
   }
 };
