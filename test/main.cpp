@@ -37,6 +37,7 @@ void runFunctions() {
   // std::cout << rhs << "\n";
 
   Timer timer;
+  timer.reset();
   op.prepareSolve();
   // auto result = fsi::interpolate(f, it, phi, x);
   std::cout << "Time for prepareSolve(): " << timer.elapsed() << " s\n";
@@ -67,6 +68,6 @@ void runFunctions() {
 
 // using namespace fsi;
 int main() {
-  runFunctions();
-  // measurePerformance();
+  // runFunctions();
+  measurePerformance();
 }

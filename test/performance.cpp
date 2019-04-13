@@ -48,17 +48,40 @@ void measurePerformance() {
   // if exceeded, we do not try higher numbers of points
   double maxRuntime = 2.0;
 
-  // perform 2*k+1 measurements per configuration
-  size_t k = 1;
+  // small value for denominator of a fraction
+  double epsilon = 0.01;
+
+  // perform 2*k+1 measurements per configuration, then take median
+  size_t k = 2;
+
+  // warm-up
+
+  std::cout << "Warm-up\n";
+
+  size_t d_warmup = 5;
+  size_t bound_warmup = 60;
+
+  fsi::BoundedSumIterator it(d_warmup, bound_warmup);
+  std::vector<MonomialFunctions> phi(d_warmup);
+  std::vector<GoldenPointDistribution> x(d_warmup);
+
+  auto rhs = evaluateFunction(it, f, x);
+  auto op = createInterpolationOperator(it, phi, x);
+
+  op.solve(rhs);
+
+  std::cout << "Warm-up finished\n";
 
   for (size_t d : dimensions) {
     std::cout << "Dimension: " << d << "\n";
 
     size_t last_num_points = 0;
+    double last_runtime = 0.0;
 
     for (size_t bound = 1; true; ++bound) {
       size_t num_points = fsi::binom(bound + d, d);
       if (num_points > maxNumPoints) break;
+      if (num_points / (last_num_points + epsilon) * last_runtime > maxRuntime) break;
       if (num_points < last_num_points * minQuotient) continue;
 
       last_num_points = num_points;
@@ -74,6 +97,7 @@ void measurePerformance() {
             auto op = createInterpolationOperator(it, phi, x);
 
             Timer timer;
+            timer.reset();
             op.solve(rhs);
             double time = timer.elapsed();
             std::cout << "Time for solve(): " << time << " s\n";
@@ -83,7 +107,7 @@ void measurePerformance() {
 
       stream << d << ", " << bound << ", " << fsi::binom(bound + d, d) << ", " << runtime << "\n";
 
-      if (runtime > maxRuntime) break;
+      last_runtime = runtime;
     }
   }
 
