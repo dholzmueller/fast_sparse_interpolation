@@ -157,7 +157,7 @@ void runFunctions() {
 // using namespace fsi;
 int main() {
   // runFunctions();
-  // measurePerformance();
+  measurePerformance();
   // example1();
-  example2();
+  // example2();
 }
