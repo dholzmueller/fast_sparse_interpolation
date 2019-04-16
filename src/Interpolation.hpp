@@ -23,32 +23,21 @@ limitations under the License.
 
 namespace fsi {
 
-inline std::ostream &operator<<(std::ostream &os, boost::numeric::ublas::matrix<double> matrix) {
-  os << "[";
-  for (size_t i = 0; i < matrix.size1(); ++i) {
-    for (size_t j = 0; j < matrix.size2(); ++j) {
-      os << matrix(i, j) << "   ";
-    }
-    os << "\n";
-  }
-  os << " ]";
-  return os;
-}
-
-template <class T>
-inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
-  os << "[";
-  for (auto ii = v.begin(); ii != v.end(); ++ii) {
-    os << " " << *ii;
-  }
-  os << " ]";
-  return os;
-}
-
+/**
+ * Represents a vector indexed by multi-indices which are specified by an iterator of type It.
+ */
 template <typename It>
 class MultiDimVector {
   It it;
 
+ public:
+  // put the first dimension into an outer vector for processing reasons
+  // data[i] contains all entries whose multi-index starts with i, ordered lexicographically.
+  std::vector<std::vector<double>> data;
+
+  /**
+   * Iterator class used for begin() / end()
+   */
   class Iterator {
     MultiDimVector<It> &v;
     StepIterator<It> stepIt;
@@ -90,10 +79,6 @@ class MultiDimVector {
     bool operator!=(const self_type &rhs) { return !(*this == rhs); }
   };
 
- public:
-  // put the first dimension into an outer vector for processing reasons
-  std::vector<std::vector<double>> data;
-
   MultiDimVector(It it) : it(it), data(it.firstIndexBound()) {
     auto sizes = it.numValuesPerFirstIndex();
     for (size_t i = 0; i < sizes.size(); ++i) {
@@ -106,14 +91,15 @@ class MultiDimVector {
     std::swap(it, other.it);
   }
 
-  void clear() {
-    for (size_t dim = 0; dim < data.size(); ++dim) {
-      data[dim].clear();
-    }
-  }
-
+  /**
+   * Returns the associated iterator object.
+   */
   It getJumpIterator() const { return it; }
 
+  /**
+   * Changes the associated iterator object and adjusts the structure of the data vectors (without
+   * initializing them).
+   */
   void resetWithJumpIterator(It const &other_it) {
     it = other_it;
     size_t n_1 = it.firstIndexBound();
@@ -151,6 +137,34 @@ class MultiDimVector {
   }
 };
 
+/**
+ * Helper for printing a matrix
+ */
+inline std::ostream &operator<<(std::ostream &os, boost::numeric::ublas::matrix<double> matrix) {
+  os << "[";
+  for (size_t i = 0; i < matrix.size1(); ++i) {
+    for (size_t j = 0; j < matrix.size2(); ++j) {
+      os << matrix(i, j) << "   ";
+    }
+    os << "\n";
+  }
+  os << " ]";
+  return os;
+}
+
+/**
+ * Helper for printing a std::vector
+ */
+template <class T>
+inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
+  os << "[";
+  for (auto ii = v.begin(); ii != v.end(); ++ii) {
+    os << " " << *ii;
+  }
+  os << " ]";
+  return os;
+}
+
 template <typename It>
 MultiDimVector<It> operator+(MultiDimVector<It> first, MultiDimVector<It> const &second) {
   first += second;
@@ -175,6 +189,21 @@ double squared_l2_norm(MultiDimVector<It> const &v) {
   return sum;
 }
 
+// ----- The next block of methods contains methods for efficient multi-indexed matrix-vector
+// products.
+
+/**
+ * Multiplies the multi-indexed vector v with the matrix \widehat{I \otimes \hdots \otimes I \otimes
+ * L}, according to the notation from the paper. Saves the result in v. The vector buffer is used
+ * for storing intermediate results. It should be provided externally and can be used for multiple
+ * matrix-vector products to omit allocating new memory each time.
+ * Note that this method permutes indices, specifically it moves the last index to the front. This
+ * means e.g. that an element at index (0, 1, 2, 3) of the resulting vector would have been at index
+ * (1, 2, 3, 0) if the indices hadn't been permuted.
+ * We cycle indices because it allows for almost continuous memory access during each
+ * multiplication, hence likely accelerating the method due to better cache performance and better
+ * iterator performance.
+ */
 template <typename It>
 void multiply_single_lower_triangular_inplace(boost::numeric::ublas::matrix<double> const &L,
                                               MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
@@ -216,6 +245,9 @@ void multiply_single_lower_triangular_inplace(boost::numeric::ublas::matrix<doub
   v.swap(buffer);
 }
 
+/**
+ * Same as above, but with an upper triangular matrix U instead of L.
+ */
 template <typename It>
 void multiply_single_upper_triangular_inplace(boost::numeric::ublas::matrix<double> const &U,
                                               MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
@@ -257,6 +289,9 @@ void multiply_single_upper_triangular_inplace(boost::numeric::ublas::matrix<doub
   v.swap(buffer);
 }
 
+/**
+ * Same as above, but with an arbitrary Matrix M instead of L.
+ */
 template <typename It>
 void multiply_single_arbitrary_inplace(boost::numeric::ublas::matrix<double> const &M,
                                        MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
@@ -298,6 +333,11 @@ void multiply_single_arbitrary_inplace(boost::numeric::ublas::matrix<double> con
   v.swap(buffer);
 }
 
+/**
+ * Same as above, but multiplies with the identity matrix, i.e. it only cycles indices. This should
+ * be somewhat faster than explicitly multiplying with the identity matrix using one of the other
+ * three methods.
+ */
 template <typename It>
 void multiply_single_identity_inplace(MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
   It it = v.getJumpIterator();
@@ -334,6 +374,9 @@ void multiply_single_identity_inplace(MultiDimVector<It> &v, MultiDimVector<It> 
   v.swap(buffer);
 }
 
+/**
+ * Repeats calls to the identity multiplication to cycle the indices several times.
+ */
 template <typename It>
 void cycle_vector_inplace(size_t num_times, MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
   for (size_t i = 0; i < num_times; ++i) {
@@ -341,6 +384,10 @@ void cycle_vector_inplace(size_t num_times, MultiDimVector<It> &v, MultiDimVecto
   }
 }
 
+/**
+ * Repeats calls to the identity multiplication to cycle the indices several times. Uses its own
+ * buffer (potentially slower than reusing an already created buffer).
+ */
 template <typename It>
 void cycle_vector_inplace(size_t num_times, MultiDimVector<It> &v) {
   MultiDimVector<It> buffer(v.getJumpIterator());
@@ -349,6 +396,10 @@ void cycle_vector_inplace(size_t num_times, MultiDimVector<It> &v) {
   }
 }
 
+/**
+ * Performs a multiplication with a tensor product of lower triangular matrices \widehat{L[1]
+ * \otimes \hdots \otimes L[k]}.
+ */
 template <typename It>
 void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix<double>> L,
                                        MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
@@ -362,6 +413,10 @@ void multiply_lower_triangular_inplace(std::vector<boost::numeric::ublas::matrix
   }
 }
 
+/**
+ * Performs a multiplication with a tensor product of upper triangular matrices \widehat{U[1]
+ * \otimes \hdots \otimes U[k]}.
+ */
 template <typename It>
 void multiply_upper_triangular_inplace(std::vector<boost::numeric::ublas::matrix<double>> U,
                                        MultiDimVector<It> &v, MultiDimVector<It> &buffer) {
@@ -376,24 +431,46 @@ void multiply_upper_triangular_inplace(std::vector<boost::numeric::ublas::matrix
 }
 
 /**
- * Represents a sparse linear tensor product operator defined by a matrix for each dimension.
+ * Represents a sparse linear tensor product operator defined by a matrix for each dimension and an
+ * iterator that defines the multi-index set.
  */
 template <typename It>
 class SparseTPOperator {
+  // Iterator that defines the multi-index set
   It it;
+
+  // Matrices associated with the operator.
   std::vector<boost::numeric::ublas::matrix<double>> M;
+
+  // Matrices containing the L and U parts of the LU decompositions
   std::vector<boost::numeric::ublas::matrix<double>> LU;
+
+  // Matrices containing the L parts of the LU decompositions
   std::vector<boost::numeric::ublas::matrix<double>> L;
+
+  // Matrices containing the U parts of the LU decomposition
   std::vector<boost::numeric::ublas::matrix<double>> U;
+
+  // Inverses of the L matrices
   std::vector<boost::numeric::ublas::matrix<double>> Linv;
+
+  // Inverses of the U matrices
   std::vector<boost::numeric::ublas::matrix<double>> Uinv;
+
+  // is used to store intermediate data
   MultiDimVector<It> buffer;
+
+  // dimension of the indices
   size_t d;
 
  public:
   SparseTPOperator(It it, std::vector<boost::numeric::ublas::matrix<double>> matrices)
       : it(it), M(matrices), buffer(it), d(matrices.size()){};
 
+  /**
+   * This method performs preparations common to apply() and solve() if they haven't already been
+   * performed. The preparations are the LU decompositions of the M matrices.
+   */
   void prepareCommon() {
     if (LU.size() > 0) {
       return;  // already prepared
@@ -412,6 +489,10 @@ class SparseTPOperator {
     }
   }
 
+  /**
+   * This method performs preparations specific to apply() if they haven't already been performed.
+   * These are the (cheap) computation of L and U from LU.
+   */
   void prepareApply() {
     if (L.size() > 0) {
       return;  // already prepared
@@ -445,6 +526,10 @@ class SparseTPOperator {
     }
   }
 
+  /**
+   * This method performs preparations specific to solve() if they haven't already been performed.
+   * This is the inversion of the L and U matrices.
+   */
   void prepareSolve() {
     if (Linv.size() > 0) {
       return;  // already prepared
@@ -467,6 +552,9 @@ class SparseTPOperator {
     }
   }
 
+  /**
+   * Performs a matrix-vector product with the matrix that is implicitly defined by this operator.
+   */
   MultiDimVector<It> apply(MultiDimVector<It> input) {
     prepareApply();
     multiply_upper_triangular_inplace(U, input, buffer);
@@ -474,6 +562,10 @@ class SparseTPOperator {
     return input;
   }
 
+  /**
+   * Performs a matrix-vector product with the inverse of the matrix that is implicitly defined by
+   * this operator.
+   */
   MultiDimVector<It> solve(MultiDimVector<It> rhs) {
     prepareSolve();
     multiply_lower_triangular_inplace(Linv, rhs, buffer);
@@ -482,6 +574,11 @@ class SparseTPOperator {
   }
 };
 
+/**
+ * Creates a SparseTPOperator corresponding to the interpolation problem. That means its
+ * one-dimensional matrices contain the entries phi[k](j)(x[k](i)). The type of phi and x must be
+ * such that this expression is defined.
+ */
 template <typename It, typename X, typename Phi>
 SparseTPOperator<It> createInterpolationOperator(It it, Phi phi, X x) {
   auto n = it.indexBounds();
@@ -508,6 +605,12 @@ SparseTPOperator<It> createInterpolationOperator(It it, Phi phi, X x) {
   return SparseTPOperator<It>(it, matrices);
 }
 
+/**
+ * Creates a MultiDimVector containing the values of the function f at the grid points specified by
+ * x and the multi-index iterator it. The function f should take a std::vector<double> as an
+ * argument. The point object x should have a type such that the expression x[k](i) yields a double
+ * specifying the i-th point (starting from i=0) in dimension k (also starting from k=0).
+ */
 template <typename It, typename Func, typename X>
 MultiDimVector<It> evaluateFunction(It it, Func f, X x) {
   size_t d = it.dim();
@@ -538,6 +641,11 @@ MultiDimVector<It> evaluateFunction(It it, Func f, X x) {
   return v;
 }
 
+/**
+ * Convenience function that computes a vector of interpolation coefficients for the sparse grid
+ * basis given by phi and it on the points given by phi and it. The arguments f, it, phi, x need to
+ * satisfy the same requirements as explained in the documentation of the functions above.
+ */
 template <typename Func, typename It, typename Phi, typename X>
 MultiDimVector<It> interpolate(Func f, It it, Phi phi, X x) {
   auto rhs = evaluateFunction(it, f, x);
