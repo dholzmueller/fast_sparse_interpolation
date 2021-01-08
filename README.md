@@ -1,7 +1,7 @@
 This is a header-only library providing a fast matrix-vector product and linear system solver for tensor product matrices with a downward-closed index set restriction. This can especially be applied to compute interpolation coefficients for a sparse grid basis or evaluate a sparse interpolant at sparse grid points. The library code is located in the src folder.
 
 The fast_sparse_interpolation library is published under an Apache 2.0 license. If you use this project for research purposes, please cite the following publication which describes the mathematical background:
-- David Holzmüller, Dirk Pflüger: Fast Sparse Grid Operations: A Unified Framework using Sparsified Generalized Triangular Tensor Products (currently submitted).
+- David Holzmüller, Dirk Pflüger: Fast Sparse Grid Operations using the Unidirectional Principle: A Generalized and Unified Framework (currently submitted).
 
 The essential ideas behind the algorithm were first proposed in:
 - Gustavo Avila and Tucker Carrington Jr.: A multi-dimensional Smolyak collocation method in curvilinear coordinates for computing vibrational spectra (2015).
