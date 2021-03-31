@@ -14,10 +14,10 @@ def readFromFile(filename):
     file.close()
     return result
 
-datastr = readFromFile("../performance_data.csv")
+datastr = readFromFile("performance_data.csv")
 rows = datastr.split("\n")[:-1]
 values = np.array([[float(s) for s in r.split(', ')] for r in rows])
-# print(values)
+#print(values)
 
 dimensions = values[:, 0]
 bounds = values[:, 1]

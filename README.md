@@ -1,12 +1,14 @@
-This is a header-only library providing a fast matrix-vector product and linear system solver for tensor product matrices with a downward-closed index set restriction. This can especially be applied to compute interpolation coefficients for a sparse grid basis or evaluate a sparse interpolant at sparse grid points. The library code is located in the src folder.
+This is a header-only library providing a fast matrix-vector product and linear system solver for tensor product matrices with a downward-closed index set restriction. It can especially be applied to compute interpolation coefficients for a sparse grid basis or evaluate a sparse interpolant at sparse grid points. The library code is located in the src folder.
 
 The fast_sparse_interpolation library is published under an Apache 2.0 license. If you use this project for research purposes, please cite the following publication which describes the mathematical background:
-- David Holzmüller, Dirk Pflüger: Fast Sparse Grid Operations using the Unidirectional Principle: A Generalized and Unified Framework (currently submitted).
+- David Holzmüller and Dirk Pflüger. Fast Sparse Grid Operations using the Unidirectional Principle: A Generalized and Unified Framework. Sparse Grids and Applications - Munich 2018 (to appear in 2021).
 
 The essential ideas behind the algorithm were first proposed in:
-- Gustavo Avila and Tucker Carrington Jr.: A multi-dimensional Smolyak collocation method in curvilinear coordinates for computing vibrational spectra (2015).
+- Gustavo Avila and Tucker Carrington Jr. A multi-dimensional Smolyak collocation method in curvilinear coordinates for computing vibrational spectra (2015).
 
-Example code for usage can be found in test/main.cpp. This file can be compiled by executing the top-level Makefile (make debug / make release). This Makefile executes cmake on CMakeLists.txt to generate a Makefile in the build folder, which is then automatically executed using make to compile the executable test code. The test folder also contains code for performance measurement and plotting of performance data, which we used for our 2019 paper.
+Example code for usage can be found in test/main.cpp. This file can be compiled by executing the top-level Makefile (make debug / make release). This Makefile executes cmake on CMakeLists.txt to generate a Makefile in the build folder, which is then automatically executed using make to compile the executable test code. The test folder also contains code for performance measurement and plotting of performance data, which we used for our paper.
+
+The C++ code requires the `boost` library and the python code requires the `numpy` and `matplotlib` libraries. The code has been tested on Ubuntu 20.10 with gcc 10.2.0, cmake 3.16.3, boost 1.71.0, Python 3.8.6, numpy 1.18.5 and matplotlib 3.2.2. It should be relative flexible with respect to software versions and operating systems, however. The resulting test and plotting code can be executed from the command line using the top-level folder as a working directory via `./build/fsi-test`, `python3 test/tex_line_plot.py` and `python3 test/surf_plot.py`.
 
 All functions and classes lie inside the namespace fsi (short for fast_sparse_interpolation). The basic structure is as follows:
 - The class MultiDimVector<IteratorType> stores vectors indexed by multi-indices.
